@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	"github.com/prometheus/client_golang/prometheus/testutil"
+	client_testutil "github.com/prometheus/client_golang/prometheus/testutil"
 	common_config "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
@@ -33,8 +33,13 @@ import (
 	"github.com/prometheus/prometheus/discovery/consul"
 	"github.com/prometheus/prometheus/discovery/file"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
+	"github.com/prometheus/prometheus/util/testutil"
 	"gopkg.in/yaml.v2"
 )
+
+func TestMain(m *testing.M) {
+	testutil.TolerantVerifyLeak(m)
+}
 
 // TestTargetUpdatesOrder checks that the target updates are received in the expected order.
 func TestTargetUpdatesOrder(t *testing.T) {
@@ -673,16 +678,14 @@ func TestTargetUpdatesOrder(t *testing.T) {
 			for _, up := range tc.updates {
 				go newMockDiscoveryProvider(up...).Run(ctx, provUpdates)
 				if len(up) > 0 {
-					totalUpdatesCount = totalUpdatesCount + len(up)
+					totalUpdatesCount += len(up)
 				}
 			}
 
-		Loop:
 			for x := 0; x < totalUpdatesCount; x++ {
 				select {
 				case <-ctx.Done():
-					t.Errorf("%d: no update arrived within the timeout limit", x)
-					break Loop
+					t.Fatalf("%d: no update arrived within the timeout limit", x)
 				case tgs := <-provUpdates:
 					discoveryManager.updateGroup(poolKey{setName: strconv.Itoa(i), provider: tc.title}, tgs)
 					for _, got := range discoveryManager.allGroups() {
@@ -758,20 +761,20 @@ func TestTargetSetRecreatesTargetGroupsEveryRun(t *testing.T) {
 	go discoveryManager.Run()
 
 	c := map[string]sd_config.ServiceDiscoveryConfig{
-		"prometheus": sd_config.ServiceDiscoveryConfig{
+		"prometheus": {
 			StaticConfigs: []*targetgroup.Group{
-				&targetgroup.Group{
+				{
 					Source: "0",
 					Targets: []model.LabelSet{
-						model.LabelSet{
+						{
 							model.AddressLabel: model.LabelValue("foo:9090"),
 						},
 					},
 				},
-				&targetgroup.Group{
+				{
 					Source: "1",
 					Targets: []model.LabelSet{
-						model.LabelSet{
+						{
 							model.AddressLabel: model.LabelValue("bar:9090"),
 						},
 					},
@@ -787,10 +790,10 @@ func TestTargetSetRecreatesTargetGroupsEveryRun(t *testing.T) {
 
 	c["prometheus"] = sd_config.ServiceDiscoveryConfig{
 		StaticConfigs: []*targetgroup.Group{
-			&targetgroup.Group{
+			{
 				Source: "0",
 				Targets: []model.LabelSet{
-					model.LabelSet{
+					{
 						model.AddressLabel: model.LabelValue("foo:9090"),
 					},
 				},
@@ -815,12 +818,12 @@ func TestTargetSetRecreatesEmptyStaticConfigs(t *testing.T) {
 	go discoveryManager.Run()
 
 	c := map[string]sd_config.ServiceDiscoveryConfig{
-		"prometheus": sd_config.ServiceDiscoveryConfig{
+		"prometheus": {
 			StaticConfigs: []*targetgroup.Group{
-				&targetgroup.Group{
+				{
 					Source: "0",
 					Targets: []model.LabelSet{
-						model.LabelSet{
+						{
 							model.AddressLabel: model.LabelValue("foo:9090"),
 						},
 					},
@@ -880,9 +883,9 @@ func TestIdenticalConfigurationsAreCoalesced(t *testing.T) {
 	go discoveryManager.Run()
 
 	c := map[string]sd_config.ServiceDiscoveryConfig{
-		"prometheus": sd_config.ServiceDiscoveryConfig{
+		"prometheus": {
 			FileSDConfigs: []*file.SDConfig{
-				&file.SDConfig{
+				{
 					Files: []string{
 						tmpFile2,
 					},
@@ -890,9 +893,9 @@ func TestIdenticalConfigurationsAreCoalesced(t *testing.T) {
 				},
 			},
 		},
-		"prometheus2": sd_config.ServiceDiscoveryConfig{
+		"prometheus2": {
 			FileSDConfigs: []*file.SDConfig{
-				&file.SDConfig{
+				{
 					Files: []string{
 						tmpFile2,
 					},
@@ -958,21 +961,21 @@ func TestGaugeFailedConfigs(t *testing.T) {
 	go discoveryManager.Run()
 
 	c := map[string]sd_config.ServiceDiscoveryConfig{
-		"prometheus": sd_config.ServiceDiscoveryConfig{
+		"prometheus": {
 			ConsulSDConfigs: []*consul.SDConfig{
-				&consul.SDConfig{
+				{
 					Server: "foo:8500",
 					TLSConfig: common_config.TLSConfig{
 						CertFile: "/tmp/non_existent",
 					},
 				},
-				&consul.SDConfig{
+				{
 					Server: "bar:8500",
 					TLSConfig: common_config.TLSConfig{
 						CertFile: "/tmp/non_existent",
 					},
 				},
-				&consul.SDConfig{
+				{
 					Server: "foo2:8500",
 					TLSConfig: common_config.TLSConfig{
 						CertFile: "/tmp/non_existent",
@@ -984,17 +987,17 @@ func TestGaugeFailedConfigs(t *testing.T) {
 	discoveryManager.ApplyConfig(c)
 	<-discoveryManager.SyncCh()
 
-	failedCount := testutil.ToFloat64(failedConfigs)
+	failedCount := client_testutil.ToFloat64(failedConfigs)
 	if failedCount != 3 {
 		t.Fatalf("Expected to have 3 failed configs, got: %v", failedCount)
 	}
 
 	c["prometheus"] = sd_config.ServiceDiscoveryConfig{
 		StaticConfigs: []*targetgroup.Group{
-			&targetgroup.Group{
+			{
 				Source: "0",
 				Targets: []model.LabelSet{
-					model.LabelSet{
+					{
 						model.AddressLabel: "foo:9090",
 					},
 				},
@@ -1004,7 +1007,7 @@ func TestGaugeFailedConfigs(t *testing.T) {
 	discoveryManager.ApplyConfig(c)
 	<-discoveryManager.SyncCh()
 
-	failedCount = testutil.ToFloat64(failedConfigs)
+	failedCount = client_testutil.ToFloat64(failedConfigs)
 	if failedCount != 0 {
 		t.Fatalf("Expected to get no failed config, got: %v", failedCount)
 	}
@@ -1190,16 +1193,10 @@ func newMockDiscoveryProvider(updates ...update) mockdiscoveryProvider {
 func (tp mockdiscoveryProvider) Run(ctx context.Context, upCh chan<- []*targetgroup.Group) {
 	for _, u := range tp.updates {
 		if u.interval > 0 {
-			t := time.NewTicker(u.interval)
-			defer t.Stop()
-		Loop:
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-t.C:
-					break Loop
-				}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(u.interval):
 			}
 		}
 		tgs := make([]*targetgroup.Group, len(u.targetGroups))

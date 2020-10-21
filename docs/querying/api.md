@@ -57,8 +57,8 @@ Names of query parameters that may be repeated end with `[]`.
 selectors](basics.md#time-series-selectors) like `http_requests_total` or
 `http_requests_total{method=~"(GET|POST)"}` and need to be URL-encoded.
 
-`<duration>` placeholders refer to Prometheus duration strings of the form
-`[0-9]+[smhdwy]`. For example, `5m` refers to a duration of 5 minutes.
+`<duration>` placeholders refer to [Prometheus duration strings](basics.md#time_durations).
+For example, `5m` refers to a duration of 5 minutes.
 
 `<bool>` placeholders refer to boolean values (strings `true` and `false`).
 
@@ -107,7 +107,7 @@ The following example evaluates the expression `up` at the time
 `2015-07-01T20:10:51.781Z`:
 
 ```json
-$ curl 'http://localhost:9090/api/v1/query?query=up&time=2015-07-01T20:10:51.781Z'
+$ curl 'http://localhost:9090/api/mysqlconfig/query?query=up&time=2015-07-01T20:10:51.781Z'
 {
    "status" : "success",
    "data" : {
@@ -172,7 +172,7 @@ The following example evaluates the expression `up` over a 30-second range with
 a query resolution of 15 seconds.
 
 ```json
-$ curl 'http://localhost:9090/api/v1/query_range?query=up&start=2015-07-01T20:10:30.781Z&end=2015-07-01T20:11:00.781Z&step=15s'
+$ curl 'http://localhost:9090/api/mysqlconfig/query_range?query=up&start=2015-07-01T20:10:30.781Z&end=2015-07-01T20:11:00.781Z&step=15s'
 {
    "status" : "success",
    "data" : {
@@ -236,7 +236,7 @@ The following example returns all series that match either of the selectors
 `up` or `process_start_time_seconds{job="prometheus"}`:
 
 ```json
-$ curl -g 'http://localhost:9090/api/v1/series?' --data-urlencode 'match[]=up' --data-urlencode 'match[]=process_start_time_seconds{job="prometheus"}'
+$ curl -g 'http://localhost:9090/api/mysqlconfig/series?' --data-urlencode 'match[]=up' --data-urlencode 'match[]=process_start_time_seconds{job="prometheus"}'
 {
    "status" : "success",
    "data" : [
@@ -268,12 +268,18 @@ GET /api/v1/labels
 POST /api/v1/labels
 ```
 
+URL query parameters:
+
+- `start=<rfc3339 | unix_timestamp>`: Start timestamp. Optional.
+- `end=<rfc3339 | unix_timestamp>`: End timestamp. Optional.
+
+
 The `data` section of the JSON response is a list of string label names.
 
 Here is an example.
 
 ```json
-$ curl 'localhost:9090/api/v1/labels'
+$ curl 'localhost:9090/api/mysqlconfig/labels'
 {
     "status": "success",
     "data": [
@@ -310,12 +316,18 @@ The following endpoint returns a list of label values for a provided label name:
 GET /api/v1/label/<label_name>/values
 ```
 
+URL query parameters:
+
+- `start=<rfc3339 | unix_timestamp>`: Start timestamp. Optional.
+- `end=<rfc3339 | unix_timestamp>`: End timestamp. Optional.
+
+
 The `data` section of the JSON response is a list of string label values.
 
 This example queries for all label values for the `job` label:
 
 ```json
-$ curl http://localhost:9090/api/v1/label/job/values
+$ curl http://localhost:9090/api/mysqlconfig/label/job/values
 {
    "status" : "success",
    "data" : [
@@ -395,7 +407,7 @@ Both the active and dropped targets are part of the response by default.
 `discoveredLabels` represent the unmodified labels retrieved during service discovery before relabelling has occurred.
 
 ```json
-$ curl http://localhost:9090/api/v1/targets
+$ curl http://localhost:9090/api/mysqlconfig/targets
 {
   "status": "success",
   "data": {
@@ -439,7 +451,7 @@ Note that an empty array is still returned for targets that are filtered out.
 Other values are ignored.
 
 ```json
-$ curl 'http://localhost:9090/api/v1/targets?state=active'
+$ curl 'http://localhost:9090/api/mysqlconfig/targets?state=active'
 {
   "status": "success",
   "data": {
@@ -486,7 +498,7 @@ URL query parameters:
 - `type=alert|record`: return only the alerting rules (e.g. `type=alert`) or the recording rules (e.g. `type=record`). When the parameter is absent or empty, no filtering is done.
 
 ```json
-$ curl http://localhost:9090/api/v1/rules
+$ curl http://localhost:9090/api/mysqlconfig/rules
 
 {
     "data": {
@@ -523,7 +535,7 @@ $ curl http://localhost:9090/api/v1/rules
                     {
                         "health": "ok",
                         "name": "job:http_inprogress_requests:sum",
-                        "query": "sum(http_inprogress_requests) by (job)",
+                        "query": "sum by (job) (http_inprogress_requests)",
                         "type": "recording"
                     }
                 ],
@@ -550,7 +562,7 @@ GET /api/v1/alerts
 ```
 
 ```json
-$ curl http://localhost:9090/api/v1/alerts
+$ curl http://localhost:9090/api/mysqlconfig/alerts
 
 {
     "data": {
@@ -592,7 +604,7 @@ The following example returns all metadata entries for the `go_goroutines` metri
 from the first two targets with label `job="prometheus"`.
 
 ```json
-curl -G http://localhost:9091/api/v1/targets/metadata \
+curl -G http://localhost:9091/api/mysqlconfig/targets/metadata \
     --data-urlencode 'metric=go_goroutines' \
     --data-urlencode 'match_target={job="prometheus"}' \
     --data-urlencode 'limit=2'
@@ -625,7 +637,7 @@ The following example returns metadata for all metrics for all targets with
 label `instance="127.0.0.1:9090`.
 
 ```json
-curl -G http://localhost:9091/api/v1/targets/metadata \
+curl -G http://localhost:9091/api/mysqlconfig/targets/metadata \
     --data-urlencode 'match_target={instance="127.0.0.1:9090"}'
 {
   "status": "success",
@@ -675,7 +687,7 @@ The `data` section of the query result consists of an object where each key is a
 The following example returns two metrics. Note that the metric `http_requests_total` has more than one object in the list. At least one target has a value for `HELP` that do not match with the rest.
 
 ```json
-curl -G http://localhost:9090/api/v1/metadata?limit=2
+curl -G http://localhost:9090/api/mysqlconfig/metadata?limit=2
 
 {
   "status": "success",
@@ -706,7 +718,7 @@ curl -G http://localhost:9090/api/v1/metadata?limit=2
 The following example returns metadata only for the metric `http_requests_total`.
 
 ```json
-curl -G http://localhost:9090/api/v1/metadata?metric=http_requests_total
+curl -G http://localhost:9090/api/mysqlconfig/metadata?metric=http_requests_total
 
 {
   "status": "success",
@@ -739,18 +751,18 @@ GET /api/v1/alertmanagers
 Both the active and dropped Alertmanagers are part of the response.
 
 ```json
-$ curl http://localhost:9090/api/v1/alertmanagers
+$ curl http://localhost:9090/api/mysqlconfig/alertmanagers
 {
   "status": "success",
   "data": {
     "activeAlertmanagers": [
       {
-        "url": "http://127.0.0.1:9090/api/v1/alerts"
+        "url": "http://127.0.0.1:9090/api/mysqlconfig/alerts"
       }
     ],
     "droppedAlertmanagers": [
       {
-        "url": "http://127.0.0.1:9093/api/v1/alerts"
+        "url": "http://127.0.0.1:9093/api/mysqlconfig/alerts"
       }
     ]
   }
@@ -773,7 +785,7 @@ The config is returned as dumped YAML file. Due to limitation of the YAML
 library, YAML comments are not included.
 
 ```json
-$ curl http://localhost:9090/api/v1/status/config
+$ curl http://localhost:9090/api/mysqlconfig/status/config
 {
   "status": "success",
   "data": {
@@ -793,7 +805,7 @@ GET /api/v1/status/flags
 All values are of the result type `string`.
 
 ```json
-$ curl http://localhost:9090/api/v1/status/flags
+$ curl http://localhost:9090/api/mysqlconfig/status/flags
 {
   "status": "success",
   "data": {
@@ -820,7 +832,7 @@ GET /api/v1/status/runtimeinfo
 The returned values are of different types, depending on the nature of the runtime property.
 
 ```json
-$ curl http://localhost:9090/api/v1/status/runtimeinfo
+$ curl http://localhost:9090/api/mysqlconfig/status/runtimeinfo
 {
   "status": "success",
   "data": {
@@ -855,7 +867,7 @@ GET /api/v1/status/buildinfo
 All values are of the result type `string`.
 
 ```json
-$ curl http://localhost:9090/api/v1/status/buildinfo
+$ curl http://localhost:9090/api/mysqlconfig/status/buildinfo
 {
   "status": "success",
   "data": {
@@ -886,7 +898,7 @@ GET /api/v1/status/tsdb
 - **seriesCountByLabelPair** This will provide a list of label value pairs and their series count.
 
 ```json
-$ curl http://localhost:9090/api/v1/status/tsdb
+$ curl http://localhost:9090/api/mysqlconfig/status/tsdb
 {
   "status": "success",
   "data": {
@@ -955,7 +967,7 @@ URL query parameters:
 - `skip_head=<bool>`: Skip data present in the head block. Optional.
 
 ```json
-$ curl -XPOST http://localhost:9090/api/v1/admin/tsdb/snapshot
+$ curl -XPOST http://localhost:9090/api/mysqlconfig/admin/tsdb/snapshot
 {
   "status": "success",
   "data": {
@@ -989,7 +1001,7 @@ Example:
 
 ```json
 $ curl -X POST \
-  -g 'http://localhost:9090/api/v1/admin/tsdb/delete_series?match[]=up&match[]=process_start_time_seconds{job="prometheus"}'
+  -g 'http://localhost:9090/api/mysqlconfig/admin/tsdb/delete_series?match[]=up&match[]=process_start_time_seconds{job="prometheus"}'
 ```
 *New in v2.1 and supports PUT from v2.9*
 
@@ -1006,7 +1018,7 @@ PUT /api/v1/admin/tsdb/clean_tombstones
 This takes no parameters or body.
 
 ```json
-$ curl -XPOST http://localhost:9090/api/v1/admin/tsdb/clean_tombstones
+$ curl -XPOST http://localhost:9090/api/mysqlconfig/admin/tsdb/clean_tombstones
 ```
 
 *New in v2.1 and supports PUT from v2.9*

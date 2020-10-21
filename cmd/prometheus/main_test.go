@@ -111,7 +111,7 @@ func TestFailedStartupExitCode(t *testing.T) {
 	}
 
 	fakeInputFile := "fake-input-file"
-	expectedExitStatus := 1
+	expectedExitStatus := 2
 
 	prom := exec.Command(promPath, "-test.main", "--config.file="+fakeInputFile)
 	err := prom.Run()
@@ -139,7 +139,7 @@ func TestSendAlerts(t *testing.T) {
 		{
 			in: []*rules.Alert{
 				{
-					Labels:      []labels.Label{{Name: "l1", Value: "v1"}},
+					Labels:      []labels.Label{{Name: "l1", Value: "mysqlconfig"}},
 					Annotations: []labels.Label{{Name: "a2", Value: "v2"}},
 					ActiveAt:    time.Unix(1, 0),
 					FiredAt:     time.Unix(2, 0),
@@ -148,7 +148,7 @@ func TestSendAlerts(t *testing.T) {
 			},
 			exp: []*notifier.Alert{
 				{
-					Labels:       []labels.Label{{Name: "l1", Value: "v1"}},
+					Labels:       []labels.Label{{Name: "l1", Value: "mysqlconfig"}},
 					Annotations:  []labels.Label{{Name: "a2", Value: "v2"}},
 					StartsAt:     time.Unix(2, 0),
 					EndsAt:       time.Unix(3, 0),
@@ -159,7 +159,7 @@ func TestSendAlerts(t *testing.T) {
 		{
 			in: []*rules.Alert{
 				{
-					Labels:      []labels.Label{{Name: "l1", Value: "v1"}},
+					Labels:      []labels.Label{{Name: "l1", Value: "mysqlconfig"}},
 					Annotations: []labels.Label{{Name: "a2", Value: "v2"}},
 					ActiveAt:    time.Unix(1, 0),
 					FiredAt:     time.Unix(2, 0),
@@ -168,7 +168,7 @@ func TestSendAlerts(t *testing.T) {
 			},
 			exp: []*notifier.Alert{
 				{
-					Labels:       []labels.Label{{Name: "l1", Value: "v1"}},
+					Labels:       []labels.Label{{Name: "l1", Value: "mysqlconfig"}},
 					Annotations:  []labels.Label{{Name: "a2", Value: "v2"}},
 					StartsAt:     time.Unix(2, 0),
 					EndsAt:       time.Unix(4, 0),
@@ -263,7 +263,7 @@ func TestTimeMetrics(t *testing.T) {
 		"prometheus_tsdb_head_max_time_seconds",
 	))
 
-	app := db.Appender()
+	app := db.Appender(context.Background())
 	_, err = app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 1000, 1)
 	testutil.Ok(t, err)
 	_, err = app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 2000, 1)

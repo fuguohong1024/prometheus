@@ -25,7 +25,7 @@ func BenchmarkMapClone(b *testing.B) {
 	m := map[string]string{
 		"job":        "node",
 		"instance":   "123.123.1.211:9090",
-		"path":       "/api/v1/namespaces/<namespace>/deployments/<name>",
+		"path":       "/api/mysqlconfig/namespaces/<namespace>/deployments/<name>",
 		"method":     "GET",
 		"namespace":  "system",
 		"status":     "500",
@@ -47,7 +47,7 @@ func BenchmarkLabelsClone(b *testing.B) {
 	m := map[string]string{
 		"job":        "node",
 		"instance":   "123.123.1.211:9090",
-		"path":       "/api/v1/namespaces/<namespace>/deployments/<name>",
+		"path":       "/api/mysqlconfig/namespaces/<namespace>/deployments/<name>",
 		"method":     "GET",
 		"namespace":  "system",
 		"status":     "500",
@@ -68,7 +68,7 @@ func BenchmarkLabelMapAccess(b *testing.B) {
 	m := map[string]string{
 		"job":        "node",
 		"instance":   "123.123.1.211:9090",
-		"path":       "/api/v1/namespaces/<namespace>/deployments/<name>",
+		"path":       "/api/mysqlconfig/namespaces/<namespace>/deployments/<name>",
 		"method":     "GET",
 		"namespace":  "system",
 		"status":     "500",
@@ -94,7 +94,7 @@ func BenchmarkLabelSetAccess(b *testing.B) {
 	m := map[string]string{
 		"job":        "node",
 		"instance":   "123.123.1.211:9090",
-		"path":       "/api/v1/namespaces/<namespace>/deployments/<name>",
+		"path":       "/api/mysqlconfig/namespaces/<namespace>/deployments/<name>",
 		"method":     "GET",
 		"namespace":  "system",
 		"status":     "500",

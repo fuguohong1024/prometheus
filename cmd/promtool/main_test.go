@@ -27,7 +27,7 @@ func TestQueryRange(t *testing.T) {
 
 	p := &promqlPrinter{}
 	exitCode := QueryRange(s.URL, map[string]string{}, "up", "0", "300", 0, p)
-	expectedPath := "/api/v1/query_range"
+	expectedPath := "/api/mysqlconfig/query_range"
 	gotPath := getRequest().URL.Path
 	if gotPath != expectedPath {
 		t.Errorf("unexpected URL path %s (wanted %s)", gotPath, expectedPath)

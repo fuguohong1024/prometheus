@@ -30,7 +30,9 @@ import (
 	"github.com/prometheus/prometheus/discovery/azure"
 	sd_config "github.com/prometheus/prometheus/discovery/config"
 	"github.com/prometheus/prometheus/discovery/consul"
+	"github.com/prometheus/prometheus/discovery/digitalocean"
 	"github.com/prometheus/prometheus/discovery/dns"
+	"github.com/prometheus/prometheus/discovery/dockerswarm"
 	"github.com/prometheus/prometheus/discovery/ec2"
 	"github.com/prometheus/prometheus/discovery/file"
 	"github.com/prometheus/prometheus/discovery/kubernetes"
@@ -302,7 +304,7 @@ var expectedConf = &Config{
 						Server:          "localhost:1234",
 						Token:           "mysecret",
 						Services:        []string{"nginx", "cache", "mysql"},
-						ServiceTags:     []string{"canary", "v1"},
+						ServiceTags:     []string{"canary", "mysqlconfig"},
 						NodeMeta:        map[string]string{"rack": "123"},
 						TagSeparator:    consul.DefaultSDConfig.TagSeparator,
 						Scheme:          "https",
@@ -590,8 +592,8 @@ var expectedConf = &Config{
 			ServiceDiscoveryConfig: sd_config.ServiceDiscoveryConfig{
 				TritonSDConfigs: []*triton.SDConfig{
 					{
-
 						Account:         "testAccount",
+						Role:            "container",
 						DNSSuffix:       "triton.example.com",
 						Endpoint:        "triton.example.com",
 						Port:            9163,
@@ -601,6 +603,49 @@ var expectedConf = &Config{
 							CertFile: "testdata/valid_cert_file",
 							KeyFile:  "testdata/valid_key_file",
 						},
+					},
+				},
+			},
+		},
+		{
+			JobName: "digitalocean-droplets",
+
+			HonorTimestamps: true,
+			ScrapeInterval:  model.Duration(15 * time.Second),
+			ScrapeTimeout:   DefaultGlobalConfig.ScrapeTimeout,
+
+			MetricsPath: DefaultScrapeConfig.MetricsPath,
+			Scheme:      DefaultScrapeConfig.Scheme,
+
+			ServiceDiscoveryConfig: sd_config.ServiceDiscoveryConfig{
+				DigitalOceanSDConfigs: []*digitalocean.SDConfig{
+					{
+						HTTPClientConfig: config_util.HTTPClientConfig{
+							BearerToken: "abcdef",
+						},
+						Port:            80,
+						RefreshInterval: model.Duration(60 * time.Second),
+					},
+				},
+			},
+		},
+		{
+			JobName: "dockerswarm",
+
+			HonorTimestamps: true,
+			ScrapeInterval:  model.Duration(15 * time.Second),
+			ScrapeTimeout:   DefaultGlobalConfig.ScrapeTimeout,
+
+			MetricsPath: DefaultScrapeConfig.MetricsPath,
+			Scheme:      DefaultScrapeConfig.Scheme,
+
+			ServiceDiscoveryConfig: sd_config.ServiceDiscoveryConfig{
+				DockerSwarmSDConfigs: []*dockerswarm.SDConfig{
+					{
+						Host:            "http://127.0.0.1:2375",
+						Role:            "nodes",
+						Port:            80,
+						RefreshInterval: model.Duration(60 * time.Second),
 					},
 				},
 			},
@@ -621,6 +666,7 @@ var expectedConf = &Config{
 						Role:            "instance",
 						Region:          "RegionOne",
 						Port:            80,
+						Availability:    "public",
 						RefreshInterval: model.Duration(60 * time.Second),
 						TLSConfig: config_util.TLSConfig{
 							CAFile:   "testdata/valid_ca_file",
@@ -690,7 +736,7 @@ func TestElideSecrets(t *testing.T) {
 	yamlConfig := string(config)
 
 	matches := secretRe.FindAllStringIndex(yamlConfig, -1)
-	testutil.Assert(t, len(matches) == 7, "wrong number of secret matches found")
+	testutil.Assert(t, len(matches) == 8, "wrong number of secret matches found")
 	testutil.Assert(t, !strings.Contains(yamlConfig, "mysecret"),
 		"yaml marshal reveals authentication credentials.")
 }
@@ -846,6 +892,9 @@ var expectedErrors = []struct {
 	}, {
 		filename: "openstack_role.bad.yml",
 		errMsg:   "unknown OpenStack SD role",
+	}, {
+		filename: "openstack_availability.bad.yml",
+		errMsg:   "unknown availability invalid, must be one of admin, internal or public",
 	}, {
 		filename: "url_in_targetgroup.bad.yml",
 		errMsg:   "\"http://bad\" is not a valid hostname",

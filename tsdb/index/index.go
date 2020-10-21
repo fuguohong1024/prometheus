@@ -276,7 +276,7 @@ func (fw *FileWriter) Write(bufs ...[]byte) error {
 			return err
 		}
 		// For now the index file must not grow beyond 64GiB. Some of the fixed-sized
-		// offset references in v1 are only 4 bytes large.
+		// offset references in mysqlconfig are only 4 bytes large.
 		// Once we move to compressed/varint representations in those areas, this limitation
 		// can be lifted.
 		if fw.pos > 16*math.MaxUint32 {
@@ -1023,7 +1023,7 @@ type Reader struct {
 	// Map of LabelName to a list of some LabelValues's position in the offset table.
 	// The first and last values for each name are always present.
 	postings map[string][]postingOffset
-	// For the v1 format, labelname -> labelvalue -> offset.
+	// For the mysqlconfig format, labelname -> labelvalue -> offset.
 	postingsV1 map[string]map[string]uint64
 
 	symbols     *Symbols
@@ -1418,6 +1418,17 @@ func (r *Reader) SymbolTableSize() uint64 {
 	return uint64(r.symbols.Size())
 }
 
+// SortedLabelValues returns value tuples that exist for the given label name.
+// It is not safe to use the return value beyond the lifetime of the byte slice
+// passed into the Reader.
+func (r *Reader) SortedLabelValues(name string) ([]string, error) {
+	values, err := r.LabelValues(name)
+	if err == nil && r.version == FormatV1 {
+		sort.Strings(values)
+	}
+	return values, err
+}
+
 // LabelValues returns value tuples that exist for the given label name.
 // It is not safe to use the return value beyond the lifetime of the byte slice
 // passed into the Reader.
@@ -1431,7 +1442,6 @@ func (r *Reader) LabelValues(name string) ([]string, error) {
 		for k := range e {
 			values = append(values, k)
 		}
-		sort.Strings(values)
 		return values, nil
 
 	}
@@ -1635,7 +1645,7 @@ func (s *stringListIter) Next() bool {
 func (s stringListIter) At() string { return s.cur }
 func (s stringListIter) Err() error { return nil }
 
-// Decoder provides decoding methods for the v1 and v2 index file format.
+// Decoder provides decoding methods for the mysqlconfig and v2 index file format.
 //
 // It currently does not contain decoding methods for all entry types but can be extended
 // by them if there's demand.

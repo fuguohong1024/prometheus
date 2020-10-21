@@ -88,7 +88,7 @@ An example of a recording rule and alert in the old format:
 
 ```
 job:request_duration_seconds:histogram_quantile99 =
-  histogram_quantile(0.99, sum(rate(request_duration_seconds_bucket[1m])) by (le, job))
+  histogram_quantile(0.99, sum by (le, job) (rate(request_duration_seconds_bucket[1m])))
 
 ALERT FrontendRequestLatency
   IF job:request_duration_seconds:histogram_quantile99{job="frontend"} > 0.1
@@ -105,8 +105,7 @@ groups:
 - name: example.rules
   rules:
   - record: job:request_duration_seconds:histogram_quantile99
-    expr: histogram_quantile(0.99, sum(rate(request_duration_seconds_bucket[1m]))
-      BY (le, job))
+    expr: histogram_quantile(0.99, sum by (le, job) (rate(request_duration_seconds_bucket[1m])))
   - alert: FrontendRequestLatency
     expr: job:request_duration_seconds:histogram_quantile99{job="frontend"} > 0.1
     for: 5m
@@ -148,7 +147,7 @@ Where `prometheus.yml` contains in addition to your full existing configuration,
 
 ```yaml
 remote_read:
-  - url: "http://localhost:9094/api/v1/read"
+  - url: "http://localhost:9094/api/mysqlconfig/read"
 ```
 
 ## PromQL
@@ -174,7 +173,7 @@ want the Prometheus UI/API to listen on a low port number (say, port 80), you'll
 need to override it. For Kubernetes, you would use the following YAML:
 
 ```yaml
-apiVersion: v1
+apiVersion: mysqlconfig
 kind: Pod
 metadata:
   name: security-context-demo-2
@@ -190,7 +189,7 @@ for more details.
 If you're using Docker, then the following snippet would be used:
 
 ```
-docker run -u root -p 80:80 prom/prometheus:v2.0.0-rc.2  --web.listen-address :80
+docker run -p 9090:9090 prom/prometheus:latest
 ```
 
 ### Prometheus lifecycle

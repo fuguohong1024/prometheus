@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -41,6 +42,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("no_proxy", "localhost,127.0.0.1,0.0.0.0,:")
 	os.Exit(m.Run())
 }
+
 func TestGlobalURL(t *testing.T) {
 	opts := &Options{
 		ListenAddress: ":9090",
@@ -89,15 +91,22 @@ func TestGlobalURL(t *testing.T) {
 	}
 }
 
+type dbAdapter struct {
+	*tsdb.DB
+}
+
+func (a *dbAdapter) Stats(statsByLabelName string) (*tsdb.Stats, error) {
+	return a.Head().Stats(statsByLabelName), nil
+}
+
 func TestReadyAndHealthy(t *testing.T) {
 	t.Parallel()
+
 	dbDir, err := ioutil.TempDir("", "tsdb-ready")
-
 	testutil.Ok(t, err)
+	defer testutil.Ok(t, os.RemoveAll(dbDir))
 
-	defer os.RemoveAll(dbDir)
 	db, err := tsdb.Open(dbDir, nil, nil, nil)
-
 	testutil.Ok(t, err)
 
 	opts := &Options{
@@ -106,13 +115,14 @@ func TestReadyAndHealthy(t *testing.T) {
 		MaxConnections: 512,
 		Context:        nil,
 		Storage:        nil,
+		LocalStorage:   &dbAdapter{db},
+		TSDBDir:        dbDir,
 		QueryEngine:    nil,
 		ScrapeManager:  &scrape.Manager{},
 		RuleManager:    &rules.Manager{},
 		Notifier:       nil,
 		RoutePrefix:    "/",
 		EnableAdminAPI: true,
-		TSDB:           func() *tsdb.DB { return db },
 		ExternalURL: &url.URL{
 			Scheme: "http",
 			Host:   "localhost:9090",
@@ -129,12 +139,17 @@ func TestReadyAndHealthy(t *testing.T) {
 	webHandler.config = &config.Config{}
 	webHandler.notifier = &notifier.Manager{}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		err := webHandler.Run(context.Background())
+		err := webHandler.Run(ctx)
 		if err != nil {
 			panic(fmt.Sprintf("Can't start web handler:%s", err))
 		}
 	}()
+
+	// TODO(bwplotka): Those tests create tons of new connection and memory that is never cleaned.
+	// Close and exhaust all response bodies.
 
 	// Give some time for the web goroutine to run since we need the server
 	// to be up before starting tests.
@@ -282,13 +297,10 @@ func TestReadyAndHealthy(t *testing.T) {
 func TestRoutePrefix(t *testing.T) {
 	t.Parallel()
 	dbDir, err := ioutil.TempDir("", "tsdb-ready")
-
 	testutil.Ok(t, err)
-
-	defer os.RemoveAll(dbDir)
+	defer testutil.Ok(t, os.RemoveAll(dbDir))
 
 	db, err := tsdb.Open(dbDir, nil, nil, nil)
-
 	testutil.Ok(t, err)
 
 	opts := &Options{
@@ -296,6 +308,8 @@ func TestRoutePrefix(t *testing.T) {
 		ReadTimeout:    30 * time.Second,
 		MaxConnections: 512,
 		Context:        nil,
+		TSDBDir:        dbDir,
+		LocalStorage:   &dbAdapter{db},
 		Storage:        nil,
 		QueryEngine:    nil,
 		ScrapeManager:  nil,
@@ -307,14 +321,15 @@ func TestRoutePrefix(t *testing.T) {
 			Host:   "localhost.localdomain:9090",
 			Scheme: "http",
 		},
-		TSDB: func() *tsdb.DB { return db },
 	}
 
 	opts.Flags = map[string]string{}
 
 	webHandler := New(nil, opts)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go func() {
-		err := webHandler.Run(context.Background())
+		err := webHandler.Run(ctx)
 		if err != nil {
 			panic(fmt.Sprintf("Can't start web handler:%s", err))
 		}
@@ -417,7 +432,6 @@ func TestDebugHandler(t *testing.T) {
 
 func TestHTTPMetrics(t *testing.T) {
 	t.Parallel()
-
 	handler := New(nil, &Options{
 		RoutePrefix:   "/",
 		ListenAddress: "somehost:9090",
@@ -449,4 +463,74 @@ func TestHTTPMetrics(t *testing.T) {
 	}
 	testutil.Equals(t, 2, int(prom_testutil.ToFloat64(counter.WithLabelValues("/-/ready", strconv.Itoa(http.StatusOK)))))
 	testutil.Equals(t, 1, int(prom_testutil.ToFloat64(counter.WithLabelValues("/-/ready", strconv.Itoa(http.StatusServiceUnavailable)))))
+}
+
+func TestShutdownWithStaleConnection(t *testing.T) {
+	dbDir, err := ioutil.TempDir("", "tsdb-ready")
+	testutil.Ok(t, err)
+	defer testutil.Ok(t, os.RemoveAll(dbDir))
+
+	db, err := tsdb.Open(dbDir, nil, nil, nil)
+	testutil.Ok(t, err)
+
+	timeout := 10 * time.Second
+
+	opts := &Options{
+		ListenAddress:  ":9090",
+		ReadTimeout:    timeout,
+		MaxConnections: 512,
+		Context:        nil,
+		Storage:        nil,
+		LocalStorage:   &dbAdapter{db},
+		TSDBDir:        dbDir,
+		QueryEngine:    nil,
+		ScrapeManager:  &scrape.Manager{},
+		RuleManager:    &rules.Manager{},
+		Notifier:       nil,
+		RoutePrefix:    "/",
+		ExternalURL: &url.URL{
+			Scheme: "http",
+			Host:   "localhost:9090",
+			Path:   "/",
+		},
+		Version:  &PrometheusVersion{},
+		Gatherer: prometheus.DefaultGatherer,
+	}
+
+	opts.Flags = map[string]string{}
+
+	webHandler := New(nil, opts)
+
+	webHandler.config = &config.Config{}
+	webHandler.notifier = &notifier.Manager{}
+
+	closed := make(chan struct{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		err := webHandler.Run(ctx)
+		if err != nil {
+			panic(fmt.Sprintf("Can't start web handler:%s", err))
+		}
+		close(closed)
+	}()
+
+	// Give some time for the web goroutine to run since we need the server
+	// to be up before starting tests.
+	time.Sleep(5 * time.Second)
+
+	// Open a socket, and don't use it. This connection should then be closed
+	// after the ReadTimeout.
+	c, err := net.Dial("tcp", "localhost:9090")
+	testutil.Ok(t, err)
+	t.Cleanup(func() { testutil.Ok(t, c.Close()) })
+
+	// Stop the web handler.
+	cancel()
+
+	select {
+	case <-closed:
+	case <-time.After(timeout + 5*time.Second):
+		t.Fatalf("Server still running after read timeout.")
+	}
 }

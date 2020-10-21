@@ -26,6 +26,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"go.uber.org/goleak"
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/prometheus/prometheus/pkg/labels"
@@ -38,6 +39,10 @@ import (
 	"github.com/prometheus/prometheus/util/teststorage"
 	"github.com/prometheus/prometheus/util/testutil"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestAlertingRule(t *testing.T) {
 	suite, err := promql.NewTest(t, `
@@ -359,7 +364,7 @@ func TestForStateRestore(t *testing.T) {
 	opts := &ManagerOptions{
 		QueryFunc:       EngineQueryFunc(suite.QueryEngine(), suite.Storage()),
 		Appendable:      suite.Storage(),
-		TSDB:            suite.Storage(),
+		Queryable:       suite.Storage(),
 		Context:         context.Background(),
 		Logger:          log.NewNopLogger(),
 		NotifyFunc:      func(ctx context.Context, expr string, alerts ...*Alert) {},
@@ -524,7 +529,7 @@ func TestStaleness(t *testing.T) {
 	opts := &ManagerOptions{
 		QueryFunc:  EngineQueryFunc(engine, st),
 		Appendable: st,
-		TSDB:       st,
+		Queryable:  st,
 		Context:    context.Background(),
 		Logger:     log.NewNopLogger(),
 	}
@@ -541,7 +546,7 @@ func TestStaleness(t *testing.T) {
 	})
 
 	// A time series that has two samples and then goes stale.
-	app := st.Appender()
+	app := st.Appender(context.Background())
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 0, 1)
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 1000, 2)
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 2000, math.Float64frombits(value.StaleNaN))
@@ -563,9 +568,7 @@ func TestStaleness(t *testing.T) {
 	matcher, err := labels.NewMatcher(labels.MatchEqual, model.MetricNameLabel, "a_plus_one")
 	testutil.Ok(t, err)
 
-	set, _, err := querier.Select(false, nil, matcher)
-	testutil.Ok(t, err)
-
+	set := querier.Select(false, nil, matcher)
 	samples, err := readSeriesSet(set)
 	testutil.Ok(t, err)
 
@@ -609,19 +612,19 @@ func TestCopyState(t *testing.T) {
 			NewAlertingRule("alert", nil, 0, nil, nil, nil, true, nil),
 			NewRecordingRule("rule1", nil, nil),
 			NewRecordingRule("rule2", nil, nil),
-			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v1"}}),
+			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "mysqlconfig"}}),
 			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v2"}}),
 			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v3"}}),
-			NewAlertingRule("alert2", nil, 0, labels.Labels{{Name: "l2", Value: "v1"}}, nil, nil, true, nil),
+			NewAlertingRule("alert2", nil, 0, labels.Labels{{Name: "l2", Value: "mysqlconfig"}}, nil, nil, true, nil),
 		},
 		seriesInPreviousEval: []map[string]labels.Labels{
 			{},
 			{},
 			{},
-			{"r3a": labels.Labels{{Name: "l1", Value: "v1"}}},
+			{"r3a": labels.Labels{{Name: "l1", Value: "mysqlconfig"}}},
 			{"r3b": labels.Labels{{Name: "l1", Value: "v2"}}},
 			{"r3c": labels.Labels{{Name: "l1", Value: "v3"}}},
-			{"a2": labels.Labels{{Name: "l2", Value: "v1"}}},
+			{"a2": labels.Labels{{Name: "l2", Value: "mysqlconfig"}}},
 		},
 		evaluationDuration: time.Second,
 	}
@@ -629,12 +632,12 @@ func TestCopyState(t *testing.T) {
 	newGroup := &Group{
 		rules: []Rule{
 			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v0"}}),
-			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v1"}}),
+			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "mysqlconfig"}}),
 			NewRecordingRule("rule3", nil, labels.Labels{{Name: "l1", Value: "v2"}}),
 			NewAlertingRule("alert", nil, 0, nil, nil, nil, true, nil),
 			NewRecordingRule("rule1", nil, nil),
 			NewAlertingRule("alert2", nil, 0, labels.Labels{{Name: "l2", Value: "v0"}}, nil, nil, true, nil),
-			NewAlertingRule("alert2", nil, 0, labels.Labels{{Name: "l2", Value: "v1"}}, nil, nil, true, nil),
+			NewAlertingRule("alert2", nil, 0, labels.Labels{{Name: "l2", Value: "mysqlconfig"}}, nil, nil, true, nil),
 			NewRecordingRule("rule4", nil, nil),
 		},
 		seriesInPreviousEval: make([]map[string]labels.Labels, 8),
@@ -643,18 +646,19 @@ func TestCopyState(t *testing.T) {
 
 	want := []map[string]labels.Labels{
 		nil,
-		{"r3a": labels.Labels{{Name: "l1", Value: "v1"}}},
+		{"r3a": labels.Labels{{Name: "l1", Value: "mysqlconfig"}}},
 		{"r3b": labels.Labels{{Name: "l1", Value: "v2"}}},
 		{},
 		{},
 		nil,
-		{"a2": labels.Labels{{Name: "l2", Value: "v1"}}},
+		{"a2": labels.Labels{{Name: "l2", Value: "mysqlconfig"}}},
 		nil,
 	}
 	testutil.Equals(t, want, newGroup.seriesInPreviousEval)
 	testutil.Equals(t, oldGroup.rules[0], newGroup.rules[3])
 	testutil.Equals(t, oldGroup.evaluationDuration, newGroup.evaluationDuration)
-	testutil.Equals(t, []labels.Labels{labels.Labels{{Name: "l1", Value: "v3"}}}, newGroup.staleSeries)
+	testutil.Equals(t, oldGroup.evaluationTimestamp, newGroup.evaluationTimestamp)
+	testutil.Equals(t, []labels.Labels{{{Name: "l1", Value: "v3"}}}, newGroup.staleSeries)
 }
 
 func TestDeletedRuleMarkedStale(t *testing.T) {
@@ -662,10 +666,10 @@ func TestDeletedRuleMarkedStale(t *testing.T) {
 	defer st.Close()
 	oldGroup := &Group{
 		rules: []Rule{
-			NewRecordingRule("rule1", nil, labels.Labels{{Name: "l1", Value: "v1"}}),
+			NewRecordingRule("rule1", nil, labels.Labels{{Name: "l1", Value: "mysqlconfig"}}),
 		},
 		seriesInPreviousEval: []map[string]labels.Labels{
-			{"r1": labels.Labels{{Name: "l1", Value: "v1"}}},
+			{"r1": labels.Labels{{Name: "l1", Value: "mysqlconfig"}}},
 		},
 	}
 	newGroup := &Group{
@@ -683,16 +687,14 @@ func TestDeletedRuleMarkedStale(t *testing.T) {
 	testutil.Ok(t, err)
 	defer querier.Close()
 
-	matcher, err := labels.NewMatcher(labels.MatchEqual, "l1", "v1")
+	matcher, err := labels.NewMatcher(labels.MatchEqual, "l1", "mysqlconfig")
 	testutil.Ok(t, err)
 
-	set, _, err := querier.Select(false, nil, matcher)
-	testutil.Ok(t, err)
-
+	set := querier.Select(false, nil, matcher)
 	samples, err := readSeriesSet(set)
 	testutil.Ok(t, err)
 
-	metric := labels.FromStrings("l1", "v1").String()
+	metric := labels.FromStrings("l1", "mysqlconfig").String()
 	metricSample, ok := samples[metric]
 
 	testutil.Assert(t, ok, "Series %s not returned.", metric)
@@ -715,12 +717,12 @@ func TestUpdate(t *testing.T) {
 	engine := promql.NewEngine(opts)
 	ruleManager := NewManager(&ManagerOptions{
 		Appendable: st,
-		TSDB:       st,
+		Queryable:  st,
 		QueryFunc:  EngineQueryFunc(engine, st),
 		Context:    context.Background(),
 		Logger:     log.NewNopLogger(),
 	})
-	ruleManager.Run()
+	ruleManager.start()
 	defer ruleManager.Stop()
 
 	err := ruleManager.Update(10*time.Second, files, nil)
@@ -851,7 +853,7 @@ func TestNotify(t *testing.T) {
 	opts := &ManagerOptions{
 		QueryFunc:   EngineQueryFunc(engine, storage),
 		Appendable:  storage,
-		TSDB:        storage,
+		Queryable:   storage,
 		Context:     context.Background(),
 		Logger:      log.NewNopLogger(),
 		NotifyFunc:  notifyFunc,
@@ -869,7 +871,7 @@ func TestNotify(t *testing.T) {
 		Opts:          opts,
 	})
 
-	app := storage.Appender()
+	app := storage.Appender(context.Background())
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 1000, 2)
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 2000, 3)
 	app.Add(labels.FromStrings(model.MetricNameLabel, "a"), 5000, 3)
@@ -901,6 +903,8 @@ func TestNotify(t *testing.T) {
 func TestMetricsUpdate(t *testing.T) {
 	files := []string{"fixtures/rules.yaml", "fixtures/rules2.yaml"}
 	metricNames := []string{
+		"prometheus_rule_evaluations_total",
+		"prometheus_rule_evaluation_failures_total",
 		"prometheus_rule_group_interval_seconds",
 		"prometheus_rule_group_last_duration_seconds",
 		"prometheus_rule_group_last_evaluation_timestamp_seconds",
@@ -908,8 +912,8 @@ func TestMetricsUpdate(t *testing.T) {
 	}
 
 	storage := teststorage.New(t)
-	registry := prometheus.NewRegistry()
 	defer storage.Close()
+	registry := prometheus.NewRegistry()
 	opts := promql.EngineOpts{
 		Logger:     nil,
 		Reg:        nil,
@@ -919,13 +923,13 @@ func TestMetricsUpdate(t *testing.T) {
 	engine := promql.NewEngine(opts)
 	ruleManager := NewManager(&ManagerOptions{
 		Appendable: storage,
-		TSDB:       storage,
+		Queryable:  storage,
 		QueryFunc:  EngineQueryFunc(engine, storage),
 		Context:    context.Background(),
 		Logger:     log.NewNopLogger(),
 		Registerer: registry,
 	})
-	ruleManager.Run()
+	ruleManager.start()
 	defer ruleManager.Stop()
 
 	countMetrics := func() int {
@@ -950,11 +954,11 @@ func TestMetricsUpdate(t *testing.T) {
 	}{
 		{
 			files:   files,
-			metrics: 8,
+			metrics: 12,
 		},
 		{
 			files:   files[:1],
-			metrics: 4,
+			metrics: 6,
 		},
 		{
 			files:   files[:0],
@@ -962,7 +966,7 @@ func TestMetricsUpdate(t *testing.T) {
 		},
 		{
 			files:   files[1:],
-			metrics: 4,
+			metrics: 6,
 		},
 	}
 
@@ -993,13 +997,13 @@ func TestGroupStalenessOnRemoval(t *testing.T) {
 	engine := promql.NewEngine(opts)
 	ruleManager := NewManager(&ManagerOptions{
 		Appendable: storage,
-		TSDB:       storage,
+		Queryable:  storage,
 		QueryFunc:  EngineQueryFunc(engine, storage),
 		Context:    context.Background(),
 		Logger:     log.NewNopLogger(),
 	})
 	var stopped bool
-	ruleManager.Run()
+	ruleManager.start()
 	defer func() {
 		if !stopped {
 			ruleManager.Stop()
@@ -1070,13 +1074,13 @@ func TestMetricsStalenessOnManagerShutdown(t *testing.T) {
 	engine := promql.NewEngine(opts)
 	ruleManager := NewManager(&ManagerOptions{
 		Appendable: storage,
-		TSDB:       storage,
+		Queryable:  storage,
 		QueryFunc:  EngineQueryFunc(engine, storage),
 		Context:    context.Background(),
 		Logger:     log.NewNopLogger(),
 	})
 	var stopped bool
-	ruleManager.Run()
+	ruleManager.start()
 	defer func() {
 		if !stopped {
 			ruleManager.Stop()
@@ -1105,9 +1109,7 @@ func countStaleNaN(t *testing.T, st storage.Storage) int {
 	matcher, err := labels.NewMatcher(labels.MatchEqual, model.MetricNameLabel, "test_2")
 	testutil.Ok(t, err)
 
-	set, _, err := querier.Select(false, nil, matcher)
-	testutil.Ok(t, err)
-
+	set := querier.Select(false, nil, matcher)
 	samples, err := readSeriesSet(set)
 	testutil.Ok(t, err)
 
@@ -1121,4 +1123,43 @@ func countStaleNaN(t *testing.T, st storage.Storage) int {
 		}
 	}
 	return c
+}
+
+func TestGroupHasAlertingRules(t *testing.T) {
+	tests := []struct {
+		group *Group
+		want  bool
+	}{
+		{
+			group: &Group{
+				name: "HasAlertingRule",
+				rules: []Rule{
+					NewAlertingRule("alert", nil, 0, nil, nil, nil, true, nil),
+					NewRecordingRule("record", nil, nil),
+				},
+			},
+			want: true,
+		},
+		{
+			group: &Group{
+				name:  "HasNoRule",
+				rules: []Rule{},
+			},
+			want: false,
+		},
+		{
+			group: &Group{
+				name: "HasOnlyRecordingRule",
+				rules: []Rule{
+					NewRecordingRule("record", nil, nil),
+				},
+			},
+			want: false,
+		},
+	}
+
+	for i, test := range tests {
+		got := test.group.HasAlertingRules()
+		testutil.Assert(t, test.want == got, "test case %d failed, expected:%t got:%t", i, test.want, got)
+	}
 }

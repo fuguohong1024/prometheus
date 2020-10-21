@@ -179,6 +179,12 @@ func resolveFilepaths(baseDir string, cfg *Config) {
 		for _, consulcfg := range cfg.ConsulSDConfigs {
 			tlsPaths(&consulcfg.TLSConfig)
 		}
+		for _, digitaloceancfg := range cfg.DigitalOceanSDConfigs {
+			clientPaths(&digitaloceancfg.HTTPClientConfig)
+		}
+		for _, dockerswarmcfg := range cfg.DockerSwarmSDConfigs {
+			clientPaths(&dockerswarmcfg.HTTPClientConfig)
+		}
 		for _, cfg := range cfg.OpenstackSDConfigs {
 			tlsPaths(&cfg.TLSConfig)
 		}
@@ -310,7 +316,7 @@ func (c *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// Create a clean global config as the previous one was already populated
 	// by the default due to the YAML parser behavior for empty blocks.
 	gc := &GlobalConfig{}
-	type plain GlobalConfig
+		type plain GlobalConfig
 	if err := unmarshal((*plain)(gc)); err != nil {
 		return err
 	}
@@ -373,8 +379,11 @@ type ScrapeConfig struct {
 	MetricsPath string `yaml:"metrics_path,omitempty"`
 	// The URL scheme with which to fetch metrics from targets.
 	Scheme string `yaml:"scheme,omitempty"`
-	// More than this many samples post metric-relabelling will cause the scrape to fail.
+	// More than this many samples post metric-relabeling will cause the scrape to fail.
 	SampleLimit uint `yaml:"sample_limit,omitempty"`
+	// More than this many targets after the target relabeling will cause the
+	// scrapes to fail.
+	TargetLimit uint `yaml:"target_limit,omitempty"`
 
 	// We cannot do proper Go type embedding below as the parser will then parse
 	// values arbitrarily into the overflow maps of further-down types.
@@ -482,7 +491,7 @@ func (a AlertmanagerConfigs) ToMap() map[string]*AlertmanagerConfig {
 }
 
 // AlertmanagerAPIVersion represents a version of the
-// github.com/prometheus/alertmanager/api, e.g. 'v1' or 'v2'.
+// github.com/prometheus/alertmanager/api, e.g. 'mysqlconfig' or 'v2'.
 type AlertmanagerAPIVersion string
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
@@ -504,8 +513,8 @@ func (v *AlertmanagerAPIVersion) UnmarshalYAML(unmarshal func(interface{}) error
 
 const (
 	// AlertmanagerAPIVersionV1 represents
-	// github.com/prometheus/alertmanager/api/v1.
-	AlertmanagerAPIVersionV1 AlertmanagerAPIVersion = "v1"
+	// github.com/prometheus/alertmanager/api/mysqlconfig.
+	AlertmanagerAPIVersionV1 AlertmanagerAPIVersion = "mysqlconfig"
 	// AlertmanagerAPIVersionV2 represents
 	// github.com/prometheus/alertmanager/api/v2.
 	AlertmanagerAPIVersionV2 AlertmanagerAPIVersion = "v2"

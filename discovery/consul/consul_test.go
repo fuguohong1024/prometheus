@@ -26,7 +26,12 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
 	"github.com/prometheus/prometheus/util/testutil"
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestConfiguredService(t *testing.T) {
 	conf := &SDConfig{
@@ -82,7 +87,7 @@ func TestConfiguredServiceWithTags(t *testing.T) {
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "configuredServiceName",
 			serviceTags: []string{""},
@@ -91,16 +96,16 @@ func TestConfiguredServiceWithTags(t *testing.T) {
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "configuredServiceName",
-			serviceTags: []string{"http", "v1"},
+			serviceTags: []string{"http", "mysqlconfig"},
 			shouldWatch: true,
 		},
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "nonConfiguredServiceName",
 			serviceTags: []string{""},
@@ -109,37 +114,37 @@ func TestConfiguredServiceWithTags(t *testing.T) {
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "nonConfiguredServiceName",
-			serviceTags: []string{"http, v1"},
+			serviceTags: []string{"http, mysqlconfig"},
 			shouldWatch: false,
 		},
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "configuredServiceName",
-			serviceTags: []string{"http", "v1", "foo"},
+			serviceTags: []string{"http", "mysqlconfig", "foo"},
 			shouldWatch: true,
 		},
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1", "foo"},
+				ServiceTags: []string{"http", "mysqlconfig", "foo"},
 			},
 			serviceName: "configuredServiceName",
-			serviceTags: []string{"http", "v1", "foo"},
+			serviceTags: []string{"http", "mysqlconfig", "foo"},
 			shouldWatch: true,
 		},
 		{
 			conf: &SDConfig{
 				Services:    []string{"configuredServiceName"},
-				ServiceTags: []string{"http", "v1"},
+				ServiceTags: []string{"http", "mysqlconfig"},
 			},
 			serviceName: "configuredServiceName",
-			serviceTags: []string{"http", "v1", "v1"},
+			serviceTags: []string{"http", "mysqlconfig", "mysqlconfig"},
 			shouldWatch: true,
 		},
 	}
@@ -192,7 +197,7 @@ const (
 		"Service": "test",
 		"Tags": ["tag1"],
 		"Address": "",
-		"Meta": {"version":"1.0.0","environment":"stagging"},
+		"Meta": {"version":"1.0.0","environment":"staging"},
 		"Port": 3341,
 		"Weights": {
 			"Passing": 1,
@@ -221,22 +226,22 @@ func newServer(t *testing.T) (*httptest.Server, *SDConfig) {
 	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		response := ""
 		switch r.URL.String() {
-		case "/v1/agent/self":
+		case "/mysqlconfig/agent/self":
 			response = AgentAnswer
-		case "/v1/health/service/test?node-meta=rack_name%3A2304&stale=&tag=tag1&wait=30000ms":
+		case "/mysqlconfig/health/service/test?node-meta=rack_name%3A2304&stale=&tag=tag1&wait=120000ms":
 			response = ServiceTestAnswer
-		case "/v1/health/service/test?wait=30000ms":
+		case "/mysqlconfig/health/service/test?wait=120000ms":
 			response = ServiceTestAnswer
-		case "/v1/health/service/other?wait=30000ms":
+		case "/mysqlconfig/health/service/other?wait=120000ms":
 			response = `[]`
-		case "/v1/catalog/services?node-meta=rack_name%3A2304&stale=&wait=30000ms":
+		case "/mysqlconfig/catalog/services?node-meta=rack_name%3A2304&stale=&wait=120000ms":
 			response = ServicesTestAnswer
-		case "/v1/catalog/services?wait=30000ms":
+		case "/mysqlconfig/catalog/services?wait=120000ms":
 			response = ServicesTestAnswer
-		case "/v1/catalog/services?index=1&node-meta=rack_name%3A2304&stale=&wait=30000ms":
+		case "/mysqlconfig/catalog/services?index=1&node-meta=rack_name%3A2304&stale=&wait=120000ms":
 			time.Sleep(5 * time.Second)
 			response = ServicesTestAnswer
-		case "/v1/catalog/services?index=1&wait=30000ms":
+		case "/mysqlconfig/catalog/services?index=1&wait=120000ms":
 			time.Sleep(5 * time.Second)
 			response = ServicesTestAnswer
 		default:
@@ -283,10 +288,14 @@ func TestAllServices(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan []*targetgroup.Group)
-	go d.Run(ctx, ch)
+	go func() {
+		d.Run(ctx, ch)
+		close(ch)
+	}()
 	checkOneTarget(t, <-ch)
 	checkOneTarget(t, <-ch)
 	cancel()
+	<-ch
 }
 
 // Watch only the test service.
@@ -319,9 +328,13 @@ func TestAllOptions(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	ch := make(chan []*targetgroup.Group)
-	go d.Run(ctx, ch)
+	go func() {
+		d.Run(ctx, ch)
+		close(ch)
+	}()
 	checkOneTarget(t, <-ch)
 	cancel()
+	<-ch
 }
 
 func TestGetDatacenterShouldReturnError(t *testing.T) {

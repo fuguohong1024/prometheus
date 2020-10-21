@@ -156,7 +156,7 @@ func (d *discovery) parseServiceNodes(resp *http.Response, name string) (*target
 func (d *discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 	for c := time.Tick(time.Duration(d.refreshInterval) * time.Second); ; {
 		var srvs map[string][]string
-		resp, err := http.Get(fmt.Sprintf("http://%s/v1/catalog/services", d.address))
+		resp, err := http.Get(fmt.Sprintf("http://%s/mysqlconfig/catalog/services", d.address))
 
 		if err != nil {
 			level.Error(d.logger).Log("msg", "Error getting services list", "err", err)
@@ -185,7 +185,7 @@ func (d *discovery) Run(ctx context.Context, ch chan<- []*targetgroup.Group) {
 			if name == "consul" {
 				continue
 			}
-			resp, err := http.Get(fmt.Sprintf("http://%s/v1/catalog/service/%s", d.address, name))
+			resp, err := http.Get(fmt.Sprintf("http://%s/mysqlconfig/catalog/service/%s", d.address, name))
 			if err != nil {
 				level.Error(d.logger).Log("msg", "Error getting services nodes", "service", name, "err", err)
 				break

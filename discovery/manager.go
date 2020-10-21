@@ -29,7 +29,9 @@ import (
 
 	"github.com/prometheus/prometheus/discovery/azure"
 	"github.com/prometheus/prometheus/discovery/consul"
+	"github.com/prometheus/prometheus/discovery/digitalocean"
 	"github.com/prometheus/prometheus/discovery/dns"
+	"github.com/prometheus/prometheus/discovery/dockerswarm"
 	"github.com/prometheus/prometheus/discovery/ec2"
 	"github.com/prometheus/prometheus/discovery/file"
 	"github.com/prometheus/prometheus/discovery/gce"
@@ -239,7 +241,7 @@ func (m *Manager) updater(ctx context.Context, p *provider, updates chan []*targ
 		case tgs, ok := <-updates:
 			receivedUpdates.WithLabelValues(m.name).Inc()
 			if !ok {
-				level.Debug(m.logger).Log("msg", "discoverer channel closed", "provider", p.name)
+				level.Debug(m.logger).Log("msg", "Discoverer channel closed", "provider", p.name)
 				return
 			}
 
@@ -271,7 +273,7 @@ func (m *Manager) sender() {
 				case m.syncCh <- m.allGroups():
 				default:
 					delayedUpdates.WithLabelValues(m.name).Inc()
-					level.Debug(m.logger).Log("msg", "discovery receiver's channel was full so will retry the next cycle")
+					level.Debug(m.logger).Log("msg", "Discovery receiver's channel was full so will retry the next cycle")
 					select {
 					case m.triggerSend <- struct{}{}:
 					default:
@@ -367,6 +369,16 @@ func (m *Manager) registerProviders(cfg sd_config.ServiceDiscoveryConfig, setNam
 	for _, c := range cfg.ConsulSDConfigs {
 		add(c, func() (Discoverer, error) {
 			return consul.NewDiscovery(c, log.With(m.logger, "discovery", "consul"))
+		})
+	}
+	for _, c := range cfg.DigitalOceanSDConfigs {
+		add(c, func() (Discoverer, error) {
+			return digitalocean.NewDiscovery(c, log.With(m.logger, "discovery", "digitalocean"))
+		})
+	}
+	for _, c := range cfg.DockerSwarmSDConfigs {
+		add(c, func() (Discoverer, error) {
+			return dockerswarm.NewDiscovery(c, log.With(m.logger, "discovery", "dockerswarm"))
 		})
 	}
 	for _, c := range cfg.MarathonSDConfigs {

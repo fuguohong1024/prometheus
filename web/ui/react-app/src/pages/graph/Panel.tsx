@@ -117,14 +117,14 @@ class Panel extends Component<PanelProps & PathPrefixProps, PanelState> {
     let path: string;
     switch (this.props.options.type) {
       case 'graph':
-        path = '/api/v1/query_range';
+        path = '/api/mysqlconfig/query_range';
         params.append('start', startTime.toString());
         params.append('end', endTime.toString());
         params.append('step', resolution.toString());
         // TODO path prefix here and elsewhere.
         break;
       case 'table':
-        path = '/api/v1/query';
+        path = '/api/mysqlconfig/query';
         params.append('time', endTime.toString());
         break;
       default:
@@ -210,6 +210,10 @@ class Panel extends Component<PanelProps & PathPrefixProps, PanelState> {
   };
 
   handleChangeType = (type: PanelType) => {
+    if (this.props.options.type === type) {
+      return;
+    }
+
     this.setState({ data: null });
     this.setOptions({ type: type });
   };

@@ -105,7 +105,7 @@ func (p *queryLogTest) query(t *testing.T) {
 	switch p.origin {
 	case apiOrigin:
 		r, err := http.Get(fmt.Sprintf(
-			"http://%s:%d%s/api/v1/query_range?step=5&start=0&end=3600&query=%s",
+			"http://%s:%d%s/api/mysqlconfig/query_range?step=5&start=0&end=3600&query=%s",
 			p.host,
 			p.port,
 			p.prefix,
@@ -168,7 +168,7 @@ func (p *queryLogTest) validateLastQuery(t *testing.T, ql []queryLogLine) {
 
 	switch p.origin {
 	case apiOrigin:
-		testutil.Equals(t, p.prefix+"/api/v1/query_range", q.Request.Path)
+		testutil.Equals(t, p.prefix+"/api/mysqlconfig/query_range", q.Request.Path)
 	case consoleOrigin:
 		testutil.Equals(t, p.prefix+"/consoles/test.html", q.Request.Path)
 	case ruleOrigin:
@@ -246,7 +246,19 @@ func (p *queryLogTest) run(t *testing.T) {
 		p.setQueryLog(t, "")
 	}
 
-	params := append([]string{"-test.main", "--config.file=" + p.configFile.Name(), "--web.enable-lifecycle", fmt.Sprintf("--web.listen-address=%s:%d", p.host, p.port)}, p.params()...)
+	dir, err := ioutil.TempDir("", "query_log_test")
+	testutil.Ok(t, err)
+	defer func() {
+		testutil.Ok(t, os.RemoveAll(dir))
+	}()
+
+	params := append([]string{
+		"-test.main",
+		"--config.file=" + p.configFile.Name(),
+		"--web.enable-lifecycle",
+		fmt.Sprintf("--web.listen-address=%s:%d", p.host, p.port),
+		"--storage.tsdb.path=" + dir,
+	}, p.params()...)
 
 	prom := exec.Command(promPath, params...)
 

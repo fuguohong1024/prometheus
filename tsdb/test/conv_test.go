@@ -22,7 +22,7 @@ func BenchmarkMapConversion(b *testing.B) {
 	m := map[key]val{
 		"job":       "node",
 		"instance":  "123.123.1.211:9090",
-		"path":      "/api/v1/namespaces/<namespace>/deployments/<name>",
+		"path":      "/api/mysqlconfig/namespaces/<namespace>/deployments/<name>",
 		"method":    "GET",
 		"namespace": "system",
 		"status":    "500",
