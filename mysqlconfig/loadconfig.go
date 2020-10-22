@@ -15,10 +15,13 @@ import (
 	"time"
 )
 
-func Sqltarget(conf *config.Config,db_user,db_pwd,db_host,db_port,db_db string)error{
+
+
+var Mysqluri string
+
+func Sqltarget(conf *config.Config,mysqlurl string)error{
 	//初始化数据库连接
-	db_url:=fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=Local",db_user,db_pwd,db_host,db_port,db_db)
-	conn, err := gorm.Open("mysql", db_url)
+	conn, err := gorm.Open("mysql", mysqlurl)
 	defer conn.Close()
 	if err != nil {
 		return err

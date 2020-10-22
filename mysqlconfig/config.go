@@ -14,7 +14,7 @@ type Target struct {
 	UpdatedAt time.Time `json:"update_at"`
 
 	Target   string `gorm:"type:varchar(200);not null" json:"target"`
-	Labels   string   `sql:"type:json" json:"type"`
+	Labels   string  `gorm:"type:varchar(200)" json:"labels"`
 	GroupId  int    `gorm:"type:integer;not null" json:"group_id"`
 	Describe string `gorm:"type:varchar(200);not null" json:"describe"`
 }

@@ -54,6 +54,7 @@ import (
 	"github.com/prometheus/prometheus/config"
 	"github.com/prometheus/prometheus/discovery"
 	sd_config "github.com/prometheus/prometheus/discovery/config"
+	"github.com/prometheus/prometheus/mysqlconfig"
 	"github.com/prometheus/prometheus/notifier"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/logging"
@@ -67,7 +68,6 @@ import (
 	"github.com/prometheus/prometheus/tsdb"
 	"github.com/prometheus/prometheus/util/strutil"
 	"github.com/prometheus/prometheus/web"
-	"github.com/prometheus/prometheus/mysqlconfig"
 )
 
 var (
@@ -887,12 +887,14 @@ func reloadConfig(mysql bool,db_user,db_pwd,db_host,db_port,db_db,filename strin
 
 	// 是否使用数据库存储
 	if mysql != false{
-		erro :=	mysqlconfig.Sqltarget(conf,db_user,db_pwd,db_host,db_port,db_db)
+		uri := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=Local",db_user,db_pwd,db_host,db_port,db_db)
+		mysqlconfig.Mysqluri = uri
+		erro :=	mysqlconfig.Sqltarget(conf,uri)
 		if erro != nil{
 			level.Error(logger).Log("msg","Open mysql conn err","err",erro)
 			level.Info(logger).Log("msg","Ignore mysql conn...")
 		}else {
-			level.Info(logger).Log("msg","Use mysql target")
+			level.Info(logger).Log("msg","Use mysql target","host",db_host)
 		}
 
 	}

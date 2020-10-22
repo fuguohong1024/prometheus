@@ -19,6 +19,7 @@ import (
 	"math"
 	"net/url"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
 
+	"github.com/jinzhu/gorm"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/pkg/rulefmt"
 	"github.com/prometheus/prometheus/pkg/timestamp"
@@ -36,6 +38,7 @@ import (
 	"github.com/prometheus/prometheus/promql"
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/prometheus/prometheus/storage"
+	"github.com/prometheus/prometheus/mysqlconfig"
 )
 
 // RuleHealth describes the health state of a rule.
@@ -1055,6 +1058,78 @@ func (m *Manager) LoadGroups(
 				done:          m.done,
 			})
 		}
+	}
+
+	//出事连接
+	var rules []AlertRule
+	//uri := "root:123456@tcp(127.0.0.1:3306)/prometheus?charset=utf8mb4&parseTime=true&loc=Local"
+	uri := mysqlconfig.Mysqluri
+	db,err:=gorm.Open("mysql",uri )
+	defer db.Close()
+	if err!=nil {
+		level.Error(m.logger).Log( "Init db error: ",err)
+		return groups,nil
+	}else {
+		level.Info(m.logger).Log("Get db connection success")
+	}
+	//获取报警条目
+	err=db.Model(&AlertRule{}).Scan(&rules).Error
+	if err!=nil {
+		level.Error(m.logger).Log(err)
+	}else {
+		level.Info(m.logger).Log("Get rules success")
+	}
+	/*defer func(db *gorm.DB) {
+		err:=db.Close()
+		if err!=nil {
+			level.Error(m.logger).Log("Close db error: ",err)
+		}
+	}(db)*/
+	arules := make(map[string][]Rule)
+	for _,v:=range rules {
+		evaluation_interval := time.Duration(v.For) * time.Minute
+		expr, err := m.opts.GroupLoader.Parse(v.Expr)
+		if err != nil {
+			return nil, []error{err}
+		}
+		var lbs=labels.Labels{}
+			lab := strings.Split(v.Labels,",")
+			for _,l := range lab{
+			n := strings.Split(l,":")
+			kv := make(map[string]string)
+			kv[n[0]] =n[1]
+			lbss := labels.FromMap(kv)
+			for _,n := range lbss{
+					lbs=append(lbs,n)
+				}
+			}
+
+
+
+		var ans=labels.Labels{}
+		 ann := strings.Split(v.Annotations,",")
+		 for _,an := range ann {
+		 	m := strings.Split(an,":")
+			 ans = append(ans, labels.Label{
+				 m[0], m[1],
+			 })
+		 }
+		arules[v.Group]= append(arules[v.Group], NewAlertingRule(v.Alert,expr,evaluation_interval,lbs,ans,nil,shouldRestore,log.With(m.logger, "alert", v.Alert)))
+	}
+	level.Info(m.logger).Log(arules)
+	for k,v:=range arules {
+		rules:=make([]Rule,0,len(v))
+		rules=v[0:len(v)]
+		// 随便编一个绝对不会重复的来源文件名
+		groups[groupKey(k,"rule.mysql")]=NewGroup(GroupOptions{
+			Name:          k,
+			File:          "rule.mysql",
+			Interval:      interval,
+			Rules:         rules,
+			ShouldRestore: shouldRestore,
+			Opts:          m.opts,
+			done:          m.done,
+		})
 	}
 
 	return groups, nil
