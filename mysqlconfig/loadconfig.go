@@ -7,6 +7,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/prometheus/prometheus/config"
+	"strings"
+
 	//"github.com/prometheus/prometheus/config"
 	sd_config "github.com/prometheus/prometheus/discovery/config"
 	"github.com/prometheus/prometheus/discovery/targetgroup"
@@ -37,18 +39,13 @@ func Sqltarget(conf *config.Config,db_user,db_pwd,db_host,db_port,db_db string)e
 		var targetgroups = []*targetgroup.Group{}
 		for _, target := range targets {
 			var labels model.LabelSet = map[model.LabelName]model.LabelValue{}
-			key := model.LabelName(target.Labels.Key)
-			value := model.LabelValue(target.Labels.Values)
-			labels[key] = value
-			/*r := strings.NewReader(target.Labels)
-			scanner  := bufio.NewScanner(r)
-			for scanner.Scan() {
-				nameParts := strings.Fields(scanner.Text())
-				i := 1
-				key := model.LabelName(nameParts[i])
-				value := model.LabelValue(nameParts[i+1])
-				labels[key] = value
-			}*/
+			// 切割string 取出标签 ex ip:127.0.0.1,type:yun
+			tar := strings.Split(target.Labels,",")
+			for _,v :=range tar{
+				t := strings.Split(v,":")
+				labels[model.LabelName(t[0])] = model.LabelValue(t[1])
+			}
+
 			targetgroups = append(targetgroups, &targetgroup.Group{
 				Targets: []model.LabelSet{
 					model.LabelSet{

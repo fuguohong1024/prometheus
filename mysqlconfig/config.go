@@ -1,9 +1,7 @@
 package mysqlconfig
 
 import (
-	"database/sql/driver"
 	"time"
-	"encoding/json"
 )
 
 
@@ -16,7 +14,7 @@ type Target struct {
 	UpdatedAt time.Time `json:"update_at"`
 
 	Target   string `gorm:"type:varchar(200);not null" json:"target"`
-	Labels   JSON   `sql:"type:json" json:"type"`
+	Labels   string   `sql:"type:json" json:"type"`
 	GroupId  int    `gorm:"type:integer;not null" json:"group_id"`
 	Describe string `gorm:"type:varchar(200);not null" json:"describe"`
 }
@@ -44,21 +42,5 @@ type Job struct {
 
 func (self *Job) TableName() string {
 	return "job"
-}
-
-
-
-type JSON struct {
-	Key string `json:"key"`
-	Values string `json:"value"`
-}
-
-func (c JSON) Value() (driver.Value, error) {
-	b, err := json.Marshal(c)
-	return string(b), err
-}
-
-func (c *JSON) Scan(input interface{}) error {
-	return json.Unmarshal(input.([]byte), c)
 }
 
