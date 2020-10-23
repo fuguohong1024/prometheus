@@ -1060,9 +1060,12 @@ func (m *Manager) LoadGroups(
 		}
 	}
 
+	// 如果未启用mysql，跳过
+	if mysqlconfig.Mysqluri == ""{
+		return groups,nil
+	}
 	//出事连接
 	var rules []AlertRule
-	//uri := "root:123456@tcp(127.0.0.1:3306)/prometheus?charset=utf8mb4&parseTime=true&loc=Local"
 	uri := mysqlconfig.Mysqluri
 	db,err:=gorm.Open("mysql",uri )
 	defer db.Close()
