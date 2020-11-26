@@ -63,8 +63,7 @@ CREATE TABLE `job`  (
 -- ----------------------------
 -- Records of job
 -- ----------------------------
-INSERT INTO `job` VALUES (2, 2, '2020-10-12 14:06:03', '2020-10-12 14:05:57', 'aliyun', '/metrics', 'http', 60, 60, 'test', NULL, NULL, NULL);
-
+INSERT INTO `prometheus`.`job`(`group_id`, `createat`, `updateat`, `name`,  `describe`, `auth_user`, `auth_password`, `auth_token`) VALUES (1,NOW(), NOW(), 'ServerStatus',  'mjxj', NULL, NULL, NULL);
 -- ----------------------------
 -- Table structure for target
 -- ----------------------------
@@ -83,6 +82,5 @@ CREATE TABLE `target`  (
 -- ----------------------------
 -- Records of target
 -- ----------------------------
-INSERT INTO `target` VALUES (2, '2020-10-12 14:16:58', '2020-10-12 14:17:00', '47.112.13.164:9100', 'ip:127.0.0.1,type:yun', 2, 'new');
-
+INSERT INTO `prometheus`.`target`(`create_at`, `update_at`, `target`, `labels`, `group_id`, `describe`) VALUES ( NOW(), NOW(), '192.168.2.50:30001', 'ip:mojing@192.168.2.50,instance:test-ServerStatus', 1, 'new');
 SET FOREIGN_KEY_CHECKS = 1;

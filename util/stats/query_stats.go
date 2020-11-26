@@ -20,8 +20,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// QueryTiming identifies the code area or functionality in which time is spent
-// during a query.
+	// QueryTiming identifies the code area or functionality in which time is spent
+	// during a query.
 type QueryTiming int
 
 // Query timings.

@@ -2,10 +2,10 @@ package mysqlconfig
 
 import (
 	"fmt"
-	config_util "github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
+	config_util "github.com/prometheus/common/config"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/config"
 	"strings"
 
